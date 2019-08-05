@@ -1,0 +1,3 @@
+[submodule "email-reply-parser"]
+	path = email-reply-parser
+	url = https://github.com/fedemaiorano/email-reply-parser
