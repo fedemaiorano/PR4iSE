@@ -1,0 +1,108 @@
+---
+title: "Occorrenze per classe per ogni task di classificazione multi-class"
+output:
+  html_document: default
+  html_notebook: default
+  pdf_document: default
+---
+
+Per calcolare le distribuzioni di ogni classe per i diversi task di classificazione mu, si è sviluppato il seguente script. La funzione *count_occurrences* definita di seguito prende in input un dataset con le feature e restituisce in output un dataframe con le distribuzioni per classe (low, neutral, high) suddivise per i cinque Big 5.
+
+```{r setup, include=FALSE}
+library(knitr)
+
+class <- c('cOPE','cCON','cEXT','cAGR','cNEU')
+count_occurrences <- function(dataset) {
+  class_count_df <- data.frame(Tratto = c('Openness', 
+                                          'Conscientiousness', 
+                                          'Extraversion', 
+                                          'Agreeableness', 
+                                          'Neuroticism'), 
+                               'Low' = c(0,0,0,0,0), 
+                               'Medium'= c(0,0,0,0,0),
+                               'High' = c(0,0,0,0,0),
+                               row.names = NULL, 
+                               stringsAsFactors = T)
+  
+  for (class_num in 1:5){
+    t <- table(dataset[,class[class_num]])
+  
+    class_count_df[class_num,2] <- t[2]
+    class_count_df[class_num,3] <- t[3]
+    class_count_df[class_num,4] <- t[1]
+    class_count_df[is.na(class_count_df)] <- 0
+  }
+  
+  return(class_count_df)
+}
+
+count_occurrences_t7 <- function(dataset) {
+  class_count_df <- data.frame(Tratto = c('Openness', 
+                                          'Conscientiousness', 
+                                          'Extraversion', 
+                                          'Agreeableness', 
+                                          'Neuroticism'), 
+                               'Low' = c(0,0,0,0,0), 
+                               'LowMedium' = c(0,0,0,0,0),
+                               'Medium'= c(0,0,0,0,0),
+                               'HighMedium' = c(0,0,0,0,0),
+                               'High' = c(0,0,0,0,0),
+                               row.names = NULL, 
+                               stringsAsFactors = T)
+  
+  for (class_num in 1:5){
+    t <- table(dataset[,class[class_num]])
+  
+    class_count_df[class_num,2] <- t[3]
+    class_count_df[class_num,3] <- t[4]
+    class_count_df[class_num,4] <- t[5]
+    class_count_df[class_num,5] <- t[2]
+    class_count_df[class_num,6] <- t[1]
+    class_count_df[is.na(class_count_df)] <- 0
+  }
+  
+  return(class_count_df)
+}
+```
+
+* TASK 4: 
+  + **High** sono i punteggi maggiori di 1 per la deviazione standard sopra la media
+  + **Low** sono i punteggi minori di 1 per la deviazione standard sotto la media
+  + **Medium** sono i punteggi maggiori di 0.5 per la deviazione standard sotto la media e minori di 0.5 per la deviazione standard sopra la media
+  
+```{r}
+dataset <- readRDS(file = "RObjects/feature_texts_task4.rds")
+kable(count_occurrences(dataset), caption='Occorrenze per classe per il quarto task')
+```
+
+* TASK 5: 
+  + **High** sono i punteggi maggiori di 1 per la deviazione standard sopra la media
+  + **Low** sono i punteggi minori di 1 per la deviazione standard sotto la media
+  + **Medium** sono i punteggi maggiori di 1 per la deviazione standard sotto la media e minori di 1 per la deviazione standard sopra la media 
+
+```{r, result='asis'}
+dataset <- readRDS(file = "RObjects/feature_texts_task1.rds")
+kable(count_occurrences(dataset), caption='Occorrenze per classe per il quinto task')
+```
+
+* TASK 6: 
+  + **High** sono i punteggi maggiori di 0.5 per la deviazione standard sopra la media  
+  + **Low** sono i punteggi minori di 0.5 per la deviazione standard sotto la media
+  + **Medium** sono i punteggi maggiori di 0.5 per la deviazione standard sotto la media e minori di 0.5 per la deviazione standard sopra la media 
+
+```{r}
+dataset <- readRDS(file = "RObjects/feature_texts_task2.rds")
+kable(count_occurrences(dataset), caption='Occorrenze per classe per il sesto task')
+```
+
+* TASK 7: 
+  + **High** sono i punteggi maggiori di 1 per la deviazione standard sopra la media
+  + **HighMedium** sono i punteggi maggiori di 0.5 per la deviazione standard sopra la media e minori di 1 per la deviazione standard sopra la media
+  + **Low** sono i punteggi minori di 1 per la deviazione standard sotto la media
+  + **LowMedium** sono i punteggi maggiori di 1 per la deviazione standard sotto la media e minori di 0.5 per la deviazione standard sotto la media
+  + **Medium** sono i punteggi maggiori di 0.5 per la deviazione standard sotto la media e minori di 0.5 per la deviazione standard sopra la media
+  
+```{r}
+dataset <- readRDS(file = "RObjects/feature_texts_task7.rds")
+kable(count_occurrences_t7(dataset), caption='Occorrenze per classe per il settimo task')
+```

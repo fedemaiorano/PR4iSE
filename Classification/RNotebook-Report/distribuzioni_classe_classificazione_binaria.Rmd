@@ -1,0 +1,64 @@
+---
+title: "Occorrenze per classe per ogni task di classificazione binario"
+output:
+  html_document: default
+  html_notebook: default
+  pdf_document: default
+---
+
+Per calcolare le distribuzioni di ogni classe per i diversi task di classificazione binaria, si è sviluppato il seguente script. La funzione *count_occurrences* definita di seguito prende in input un dataset con le feature e, escludendo gli item che non sono nè high nè low, restituisce in output un dataframe con le distribuzioni per classe suddivise per i cinque Big 5.
+
+```{r setup, include=TRUE}
+library(knitr)
+
+class <- c('cOPE','cCON','cEXT','cAGR','cNEU')
+count_occurrences <- function(dataset) {
+  class_count_df <- data.frame(Tratto = c('Openness', 
+                                          'Conscientiousness', 
+                                          'Extraversion', 
+                                          'Agreeableness', 
+                                          'Neuroticism'), 
+                               'Low' = c(0,0,0,0,0), 
+                               'High' = c(0,0,0,0,0),
+                               row.names = NULL, 
+                               stringsAsFactors = T)
+  
+  for (class_num in 1:5){
+    d <- dataset[!(dataset[,class[class_num]]=='n'),]
+    d[,class[class_num]] <- factor(d[,class[class_num]])
+    t <- table(d[,class[class_num]])
+  
+    class_count_df[class_num,2] <- t[2]
+    class_count_df[class_num,3] <- t[1]
+  }
+  
+  return(class_count_df)
+}
+```
+
+* TASK 1: 
+  + **High** sono i punteggi maggiori di 1 per la deviazione standard sopra la media
+  + **Low** sono i punteggi minori di 1 per la deviazione standard sotto la media
+
+```{r, result='asis'}
+dataset <- readRDS(file = "RObjects/feature_texts_task1.rds")
+kable(count_occurrences(dataset), caption='Occorrenze per classe per il primo task')
+```
+
+* TASK 2: 
+  + **High** sono i punteggi maggiori di 0.5 per la deviazione standard sopra la media  
+  + **Low** sono invece i punteggi minori di 0.5 per la deviazione standard sotto la media
+
+```{r}
+dataset <- readRDS(file = "RObjects/feature_texts_task2.rds")
+kable(count_occurrences(dataset), caption='Occorrenze per classe per il secondo task')
+```
+
+* TASK 3:
+  + **High** sono i punteggi maggiori della media 
+  + **Low** sono invece i punteggi minori della media
+
+```{r}
+dataset <- readRDS(file = "RObjects/feature_texts_task3.rds")
+kable(count_occurrences(dataset), caption = 'Occorrenze per classe per il terzo task')
+```

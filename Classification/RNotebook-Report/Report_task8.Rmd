@@ -1,0 +1,161 @@
+---
+title: "Task di classificazione 8 (Continuous)"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+---
+```{r setup, include=FALSE}
+library(knitr)
+library(caret)
+require(SparseM)
+library(kableExtra)
+options(knitr.table.format = "html")
+library(RWeka)
+
+excluded_predictors <- c('ID')
+class <- c('cOPE','cCON','cEXT','cAGR','cNEU')
+
+classification <- function(class_num,dataset,file_num) {
+  if(file_num>2) {
+        excluded_predictors_new <- c(excluded_predictors,names(dataset[,(ncol(dataset)-83):ncol(dataset)]))
+        ngrams <- dataset[ , !(names(dataset) %in% excluded_predictors_new)]
+        top_ngrams <- names(sort(colSums(ngrams), decreasing = TRUE)[1:10000])
+        excluded_predictors_new <- c(excluded_predictors,class[-class_num],names(ngrams[, !(names(ngrams) %in% top_ngrams)]))
+    } else {
+        excluded_predictors_new <- c(excluded_predictors,class[-class_num])
+    }
+  d <- dataset[ , !(names(dataset) %in% excluded_predictors_new)]
+  
+  set.seed(1234)
+  trainIndex <- createDataPartition(d[,class[class_num]], p=0.70, list=FALSE)
+  data_train <- d[ trainIndex,]
+  data_test <- d[-trainIndex,]
+  
+  x_test <- data_test[, !(names(data_test) %in% class[class_num])]
+  y_test <- data_test[,class[class_num]]
+  
+  # fit model
+  fit <- M5Rules(as.formula(paste(class[class_num],'.',sep='~')), data=data_train)
+  
+  # summarize the fit
+  summary(fit)
+  # make predictions
+  predictions <- predict(fit, x_test)
+  # summarize accuracy
+  mae = round(MAE(predictions,y_test),2)
+  rmse = round(RMSE(predictions,y_test),2)
+  
+  return(c(mae,rmse))
+}
+```
+
+
+```{r, include=FALSE, WARNING=FALSE}
+get_metrics_df <- function(dataset_list) {
+  
+  file_num <- 1
+  dataset <- readRDS(dataset_list[file_num])
+  
+  maes <- list()
+  rmses <- list()
+  class_num <- 1
+  result = classification(class_num,dataset,file_num)
+  mae <- result[1]
+  rmse <- result[2]
+  
+  class_name <- substr(class[class_num], 2, nchar(class[class_num]))
+  
+  mae_df <- data.frame("Feature" = c("Mairesse, no NLoN"), 'temp_name' = as.numeric(mae), stringsAsFactors = F)
+  names(mae_df)[names(mae_df) == 'temp_name'] <- class_name
+  maes[class_num] <- as.numeric(mae)
+    
+  rmse_df <- data.frame("Feature" = c("Mairesse, no NLoN"), 'temp_name' = as.numeric(rmse), stringsAsFactors = F)
+  names(rmse_df)[names(rmse_df) == 'temp_name'] <- class_name
+  rmses[class_num] <- as.numeric(rmse)
+    
+  for(class_num in 2:5){
+    result = classification(class_num,dataset,file_num)
+    mae <- result[1]
+    rmse <- result[2]
+  
+    class_name <- substr(class[class_num], 2, nchar(class[class_num]))
+    
+    mae_df <- cbind(mae_df,'temp_name'=as.numeric(mae))
+    names(mae_df)[names(mae_df) == 'temp_name'] <- class_name
+    maes[class_num] <- as.numeric(mae)
+    
+    rmse_df <- cbind(rmse_df,'temp_name'=as.numeric(rmse))
+    names(rmse_df)[names(rmse_df) == 'temp_name'] <- class_name
+    rmses[class_num] <- as.numeric(rmse)
+    }
+    
+  mae_df <- cbind(mae_df,'mean'=mean(as.numeric(maes)))
+  rmse_df <- cbind(rmse_df,'mean'=mean(as.numeric(rmses)))
+    
+  row_names = c('Mairesse, with NLoN',
+                'Mairesse+N-grams, no NLoN',
+                'Mairesse+N-grams, with NLoN')
+  for(file_num in (2:length(dataset_list))){
+    dataset <- readRDS(dataset_list[file_num])
+    maes <- list()
+    rmses <- list()
+
+    class_num <- 1
+    result = classification(class_num,dataset,file_num)
+    mae <- result[1]
+    rmse <- result[2]
+
+    class_name <- substr(class[class_num], 2, nchar(class[class_num]))
+
+    mae_df <- rbind(mae_df,list(row_names[file_num-1],0,0,0,0,0,0))
+    mae_df[file_num,class_name] <- as.numeric(mae)
+    maes[class_num] <- as.numeric(mae)
+
+    rmse_df <- rbind(rmse_df,list(row_names[file_num-1],0,0,0,0,0,0))
+    rmse_df[file_num,class_name] <- as.numeric(rmse)
+    rmses[class_num] <- as.numeric(rmse)
+
+    for(class_num in 2:5){
+      result = classification(class_num,dataset,file_num)
+      mae <- result[1]
+      rmse <- result[2]
+      class_name <- substr(class[class_num], 2, nchar(class[class_num]))
+
+      mae_df[file_num,class_name] <- as.numeric(mae)
+      maes[class_num] <- as.numeric(mae)
+
+      rmse_df[file_num,class_name] <- as.numeric(rmse)
+      rmses[class_num] <- as.numeric(rmse)
+    }
+    mae_df[file_num,'mean'] <- mean(as.numeric(maes))
+    rmse_df[file_num,'mean'] <- mean(as.numeric(rmses))
+  }
+  result <- list()
+  result[[1]] <- mae_df
+  result[[2]] <- rmse_df
+
+  return(result)
+}
+```
+
+* Task 8
+
+```{r}
+data = c('RObjects/feature_texts_task8.rds',
+         'RObjects/feature_texts_nlon_task8.rds',
+         'RObjects/feature_texts_task8_ngrams.rds',
+         'RObjects/feature_texts_nlon_task8_ngrams.rds')
+
+metrics_df = get_metrics_df(data)
+
+kable(metrics_df[[1]], caption = 'MAE')%>%
+        kable_styling("striped") %>%
+        add_header_above(c(" " = 1, "MAE" = 6))
+
+kable(metrics_df[[2]], caption = 'RMSE')%>%
+        kable_styling("striped") %>%
+        add_header_above(c(" " = 1, "RMSE" = 6))
+```
+

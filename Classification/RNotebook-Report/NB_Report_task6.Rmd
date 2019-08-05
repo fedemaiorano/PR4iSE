@@ -1,0 +1,189 @@
+---
+title: "Classificazione con Naive Bayes - Task di classificazione multi-class 6"
+output:
+  html_document:
+    df_print: paged
+---
+```{r setup, include=FALSE}
+library(caret)
+require(SparseM)
+library(kableExtra)
+options(knitr.table.format = "html")
+
+excluded_predictors <- c('ID')
+class <- c('cOPE','cCON','cEXT','cAGR','cNEU')
+
+classification <- function(class_num) {
+  excluded_predictors_new <- c(excluded_predictors,class[-class_num])
+  d <- dataset[ , !(names(dataset) %in% excluded_predictors_new)]
+    
+  set.seed(1234)
+  trainIndex <- createDataPartition(d[,class[class_num]], p=0.70, list=FALSE)
+  data_train <- d[ trainIndex,]
+  data_test <- d[-trainIndex,]
+    
+  x_train <- data_train[, !(names(data_train) %in% class[class_num])]
+  y_train <- data_train[,class[class_num]]
+  x_test <- data_test[, !(names(data_test) %in% class[class_num])]
+  y_test <- data_test[,class[class_num]]
+    
+  model = train(x_train,y_train,'nb',trControl=trainControl(method='cv',number=10))
+    
+  NB_Predictions=predict(model$finalModel,x_test)
+  cm <- confusionMatrix(NB_Predictions$class,y_test, positive='H')
+  
+  accuracy <- round(cm$overall[1], digits = 2)
+  rmse <- round(RMSE(as.numeric(NB_Predictions$class),as.numeric(y_test)),2)
+  mae <- round(MAE(as.numeric(NB_Predictions$class),as.numeric(y_test)),2)
+  return(c(mae,rmse,accuracy))
+}	
+
+data = c('RObjects/feature_texts_task2.rds',
+         'RObjects/feature_texts_nlon_task2.rds',
+         'RObjects/feature_texts_task2_ngrams.rds',
+         'RObjects/feature_texts_nlon_task2_ngrams.rds')
+```
+
+Si riporta di seguito la classificazione effettuata tramite Naive Bayes per il task di classificazione multi-class 6. Le classi per questo task sono le seguenti:
+  + **High** sono i punteggi maggiori di 0.5 per la deviazione standard sopra la media  
+  + **Low** sono i punteggi minori di 0.5 per la deviazione standard sotto la media
+  + **Medium** sono i punteggi maggiori di 0.5 per la deviazione standard sotto la media e minori di 0.5 per la deviazione standard sopra la media 
+
+Per quanto riguarda la classificazione, si è diviso il dataset intero in training set (70%) e test set (30%). Si è addestrato il modello sul training set effettuando una 10-fold cross validation. Si è poi sfruttato il modello addestrato per predire i valori del test set, andando a generare la matrice di confusione e le metriche di accuracy, MAE e RMSE.
+
+Il processo si è ripetuto per i quattro diversi insiemi di feature, e i risultati sono mostrati in tre diverse tabelle: la prima riporta i valori di accuracy, la seconda quelli di MAE e l'ultima di RMSE. In ogni tabella le righe rappresentano i set di feature analizzati, mentre le colonne indicano il tratto di personalità valutato, con l'ultima colonna che riporta la media dei risultati per set di feature.
+
+```{r, include=FALSE, warnings=FALSE}
+file_num <- 1
+dataset <- readRDS(data[file_num])
+
+accuracies <- list()
+maes <- list()
+rmses <- list()
+class_num <- 1
+result = classification(class_num)
+mae <- result[1]
+rmse <- result[2]
+accuracy <- result[3]
+
+class_name <- substr(class[class_num], 2, nchar(class[class_num]))
+accuracies_df <- data.frame("Feature" = c("Mairesse, no NLoN"), 'temp_name' = as.numeric(accuracy), stringsAsFactors = F)
+names(accuracies_df)[names(accuracies_df) == 'temp_name'] <- class_name
+accuracies[class_num] <- as.numeric(accuracy)
+
+mae_df <- data.frame("Feature" = c("Mairesse, no NLoN"), 'temp_name' = as.numeric(mae), stringsAsFactors = F)
+names(mae_df)[names(mae_df) == 'temp_name'] <- class_name
+maes[class_num] <- as.numeric(mae)
+
+rmse_df <- data.frame("Feature" = c("Mairesse, no NLoN"), 'temp_name' = as.numeric(rmse), stringsAsFactors = F)
+names(rmse_df)[names(rmse_df) == 'temp_name'] <- class_name
+rmses[class_num] <- as.numeric(rmse)
+
+for(class_num in 2:5){
+  result = classification(class_num)
+  mae <- result[1]
+  rmse <- result[2]
+  accuracy <- result[3]
+  
+  class_name <- substr(class[class_num], 2, nchar(class[class_num]))
+  
+  accuracies_df <- cbind(accuracies_df,'temp_name'=as.numeric(accuracy))
+  names(accuracies_df)[names(accuracies_df) == 'temp_name'] <- class_name
+  accuracies[class_num] <- as.numeric(accuracy)
+  
+  mae_df <- cbind(mae_df,'temp_name'=as.numeric(mae))
+  names(mae_df)[names(mae_df) == 'temp_name'] <- class_name
+  maes[class_num] <- as.numeric(mae)
+  
+  rmse_df <- cbind(rmse_df,'temp_name'=as.numeric(rmse))
+  names(rmse_df)[names(rmse_df) == 'temp_name'] <- class_name
+  rmses[class_num] <- as.numeric(rmse)
+  }
+
+accuracies_df <- cbind(accuracies_df,'mean'=mean(as.numeric(accuracies)))
+mae_df <- cbind(mae_df,'mean'=mean(as.numeric(maes)))
+rmse_df <- cbind(rmse_df,'mean'=mean(as.numeric(rmses)))
+
+row_names = c('Mairesse, with NLoN',
+              'Mairesse+N-grams, no NLoN',
+              'Mairesse+N-grams, with NLoN')
+for(file_num in (2:length(data))){
+  dataset <- readRDS(data[file_num])
+  accuracies <- list()
+  maes <- list()
+  rmses <- list()
+  
+  class_num <- 1
+  result = classification(class_num)
+  mae <- result[1]
+  rmse <- result[2]
+  accuracy <- result[3]
+  
+  class_name <- substr(class[class_num], 2, nchar(class[class_num]))
+  
+  accuracies_df <- rbind(accuracies_df,list(row_names[file_num-1],0,0,0,0,0,0))
+  accuracies_df[file_num,class_name] <- as.numeric(accuracy)
+  accuracies[class_num] <- as.numeric(accuracy)
+  
+  mae_df <- rbind(mae_df,list(row_names[file_num-1],0,0,0,0,0,0))
+  mae_df[file_num,class_name] <- as.numeric(mae)
+  maes[class_num] <- as.numeric(mae)
+  
+  rmse_df <- rbind(rmse_df,list(row_names[file_num-1],0,0,0,0,0,0))
+  rmse_df[file_num,class_name] <- as.numeric(rmse)
+  rmses[class_num] <- as.numeric(rmse)
+  
+  for(class_num in 2:5){
+    result = classification(class_num)
+    mae <- result[1]
+    rmse <- result[2]
+    accuracy <- result[3]
+    
+    class_name <- substr(class[class_num], 2, nchar(class[class_num]))
+    
+    accuracies_df[file_num,class_name] <- as.numeric(accuracy)
+    accuracies[class_num] <- as.numeric(accuracy)
+    
+    mae_df[file_num,class_name] <- as.numeric(mae)
+    maes[class_num] <- as.numeric(mae)
+    
+    rmse_df[file_num,class_name] <- as.numeric(rmse)
+    rmses[class_num] <- as.numeric(rmse)
+  }
+  accuracies_df[file_num,'mean'] <- mean(as.numeric(accuracies))
+  mae_df[file_num,'mean'] <- mean(as.numeric(maes))
+  rmse_df[file_num,'mean'] <- mean(as.numeric(rmses))
+}
+```
+
+```{r}
+kable(accuracies_df, 
+      caption = 'Accuracy')%>%
+        kable_styling("striped") %>%
+        add_header_above(c(" " = 1,"Accuracy" = 6))
+```
+
+Osservando i valori di accuracy registrati dalla classificazione, si nota come le prestazioni migliori (accuracy media pari a 0.42) si registrano utilizzando come set di feature quello composto dalle feature Mairesse con n-grammi senza pre-processing NLoN. Un valore medio minore è ottenuto usando il set di feature composto dalle feature Mairesse con n-grammi con pre-processing NLoN (accuracy pari a 0.37).  Peggiori sono le performance di accuratezza con i due set senza gli n-grammi: con le sole feature Mairesse l'accuracy media sui cinque tratti è pari a 0.262, mentre con NLoN equivale a 0.28.
+
+Analizzando le accuracy per singolo tratto di personalità, si osserva come con il set formato dalle feature Mairesse con n-grammi senza pre-processing con NLoN si ottengano i risultati migliori per i tratti di Openness (0.42), Conscientiousness (0.46), Extraversion (0.46, stesso valore anche con l'ultimo set di feature), Agreeableness (0.38, risultato condiviso con il primo ed il quarto insieme di feature) e Neuroticism (0.38, stesso valore anche con l'ultimo set di feature). 
+
+Osservando i valori di MAE, si nota come, in media, il tasso di errore più basso (0.83) è raggiunto con il penultimo set di feature. Lo stesso si nota con la metrica di RMSE, dove con lo stesso set di feature si ottiene il valore minore (1.138). Di poco maggiori sono i valori riportati con il penultimo set, 0.928 di MAE medio e 1.208 di RMSE medio.
+
+
+```{r}
+kable(mae_df, 
+      caption = 'MAE')%>%
+        kable_styling("striped") %>%
+        add_header_above(c(" " = 1,"MAE" = 6))
+```
+
+
+
+```{r}
+kable(rmse_df, 
+      caption = 'RMSE')%>%
+        kable_styling("striped") %>%
+        add_header_above(c(" " = 1,"RMSE" = 6))
+```
+
+

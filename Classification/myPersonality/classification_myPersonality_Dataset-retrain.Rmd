@@ -1,0 +1,100 @@
+---
+title: "Classificazione su dataset myPersonality"
+output:
+  html_document:
+    df_print: paged
+---
+
+Prestazioni classificazione su dataset myPersonality
+
+```{r setup, include=FALSE}
+# library setup, depedencies are handled by R
+options(java.parameters = "-Xmx6000m")
+library(caret) # for param tuning
+#library(plyr)
+library(RWeka)
+library(rJava)
+library(kableExtra)
+options(knitr.table.format = "html")
+
+initial.options <- commandArgs(trailingOnly = FALSE)
+file.arg.name <- "--file="
+script.name <- sub(file.arg.name, "", initial.options[grep(file.arg.name, initial.options)])
+script.basename <- dirname(script.name)
+path <- paste(getwd(),script.basename,sep="/")
+
+excluded_predictors <- c('ID')
+
+classification <- function(class_num,dataset) {
+  excluded_predictors_new <- c(excluded_predictors,class[-class_num])
+  
+  d <- dataset[ , !(names(dataset) %in% excluded_predictors_new)]
+  # if any, exclude rows with Na, NaN and Inf (missing values)  
+  d <- na.omit(d)
+  
+  set.seed(1234)
+  trainIndex <- createDataPartition(d[,class[class_num]], p=0.70, list=FALSE)
+  data_train <- d[ trainIndex,]
+  data_test <- d[-trainIndex,]
+  
+  x_test <- data_test[, !(names(data_test) %in% class[class_num])]
+  y_test <- data_test[,class[class_num]]
+  
+  # fit model
+  fit <- M5Rules(as.formula(paste(class[class_num],'.',sep='~')), data=data_train)
+  
+  # summarize the fit
+  summary(fit)
+  # make predictions
+  predictions <- predict(fit, x_test)
+  
+  # summarize accuracy
+  mae = round(MAE(predictions,y_test),2)
+  rmse = round(RMSE(predictions,y_test),2)
+  
+  return(c(mae, rmse))
+}
+```
+
+
+```{r}
+csv_file <- paste(path,'feature_texts_myPersonality_ngrams.csv',sep="/")
+  
+# comma delimiter
+dataset <- read.csv(csv_file, header = TRUE, sep=",")
+
+maes <- list()
+rmses <- list()
+
+names(dataset)[names(dataset) == "ope"] <- "cOPE"
+names(dataset)[names(dataset) == "con_y"] <- "cCON"
+names(dataset)[names(dataset) == "ext"] <- "cEXT"
+names(dataset)[names(dataset) == "agr"] <- "cAGR"
+names(dataset)[names(dataset) == "neu"] <- "cNEU"
+
+class <- c('cOPE','cCON','cEXT','cAGR','cNEU')
+
+for(class_num in 1:5) {
+  result = classification(class_num,dataset)
+  maes[class[class_num]] <- as.numeric(result[1])
+  rmses[class[class_num]] <- as.numeric(result[2])
+}
+```
+
+MAE
+```{r}
+maes_df <- data.frame(matrix(unlist(maes), nrow=1, byrow=T))
+colnames(maes_df) = names(maes)
+kable(maes_df, caption = 'MAE myPersonality Dataset')%>%
+        kable_styling("striped") %>%
+        add_header_above(c("MAE" = 5))
+```
+
+RMSE
+```{r}
+rmse_df <- data.frame(matrix(unlist(rmses), nrow=1, byrow=T))
+colnames(rmse_df) = names(rmses)
+kable(rmse_df, caption = 'RMSE myPersonality Dataset')%>%
+        kable_styling("striped") %>%
+        add_header_above(c("RMSE" = 5))
+```

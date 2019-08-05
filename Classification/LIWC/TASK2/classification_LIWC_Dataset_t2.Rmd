@@ -1,0 +1,110 @@
+---
+title: "Classificazione su dataset LIWC con modelli task 2"
+output:
+  html_document:
+    df_print: paged
+---
+
+Prestazioni classificazione su dataset di saggi LIWC
+
+```{r setup, include=FALSE}
+# library setup, depedencies are handled by R
+library(caret) # for param tuning
+library(e1071) # for normality adjustment
+library(LiblineaR)
+library(plyr)
+library(kableExtra)
+options(knitr.table.format = "html")
+
+initial.options <- commandArgs(trailingOnly = FALSE)
+file.arg.name <- "--file="
+script.name <- sub(file.arg.name, "", initial.options[grep(file.arg.name, initial.options)])
+script.basename <- dirname(script.name)
+path <- paste(getwd(),script.basename,sep="/")
+
+classification <- function(class_num,dataset) {
+  if (class[class_num]=='cOPN'){
+    class_name = 'cOPE'
+  }else{
+    class_name = class[class_num]
+  }
+  model_path <- paste('t2_model_',class_name,'.Rda',sep='')
+  print(model_path)
+  
+  load(file = paste(path,model_path,sep="/"))
+  
+  excluded_predictors_new <- c(excluded_predictors,class[-class_num])
+  d <- dataset[ , !(names(dataset) %in% excluded_predictors_new)]
+  
+  set.seed(1234)
+  trainIndex <- createDataPartition(d[,class[class_num]], p=0.70, list=FALSE)
+  data_test <- d[-trainIndex,]
+    
+  x_test <- data_test[, !(names(data_test) %in% class[class_num])]
+  y_test <- data_test[,class[class_num]]
+  
+  p <- predict(m,x_test)
+  pred = p$predictions
+  
+  y <- revalue(factor(y_test, levels = c ("y", "n")), c("y"="H", "n"="L"))
+  cm <- confusionMatrix(pred, y, positive = 'H')
+  
+  accuracy <- round(cm$overall[1], digits = 3)
+  rmse <- round(RMSE(as.numeric(pred),as.numeric(y)),3)
+  mae <- round(MAE(as.numeric(pred),as.numeric(y)),3)
+  
+  return(c(accuracy, mae, rmse))
+}
+```
+
+```{r}
+csv_file <- paste(path,'feature_texts_liwc_ngrams(100).csv',sep="/")
+  
+# comma delimiter
+dataset <- read.csv(csv_file, header = TRUE, sep=",")
+
+# list of predictor vars by name
+excluded_predictors <- c('ID')
+
+dataset <- dataset[ , !(names(dataset) %in% excluded_predictors)]
+# if any, exclude rows with Na, NaN and Inf (missing values)
+dataset <- na.omit(dataset)
+
+accuracies <- list()
+maes <- list()
+rmses <- list()
+
+class <- c('cOPN','cCON','cEXT','cAGR','cNEU')
+
+for(n in 1:5){
+  result = classification(n,dataset)
+  accuracies[class[n]] <- as.numeric(result[1])
+  maes[class[n]] <- as.numeric(result[2])
+  rmses[class[n]] <- as.numeric(result[3])
+}
+```
+ACCURACY
+```{r}
+accuracies_df <- data.frame(matrix(unlist(accuracies), nrow=1, byrow=T))
+colnames(accuracies_df) = names(accuracies)
+kable(accuracies_df, caption = 'Accuracy LIWC Dataset')%>%
+        kable_styling("striped") %>%
+        add_header_above(c("Accuracy" = 5))
+```
+MAE
+```{r}
+maes_df <- data.frame(matrix(unlist(maes), nrow=1, byrow=T))
+colnames(maes_df) = names(maes)
+kable(maes_df, caption = 'MAE LIWC Dataset')%>%
+        kable_styling("striped") %>%
+        add_header_above(c("MAE" = 5))
+```
+
+RMSE
+```{r}
+rmse_df <- data.frame(matrix(unlist(rmses), nrow=1, byrow=T))
+colnames(rmse_df) = names(rmses)
+kable(rmse_df, caption = 'RMSE LIWC Dataset')%>%
+        kable_styling("striped") %>%
+        add_header_above(c("RMSE" = 5))
+```

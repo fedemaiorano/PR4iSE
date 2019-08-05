@@ -1,0 +1,235 @@
+---
+title: "Best LibLineaR model selection - Task di classificazione multi-class 5"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+---
+```{r setup, include=FALSE}
+library(knitr)
+library(LiblineaR)
+library(caret)
+require(SparseM)
+library(kableExtra)
+options(knitr.table.format = "html")
+
+excluded_predictors <- c('ID')
+class <- c('cOPE','cCON','cEXT','cAGR','cNEU')
+
+classification <- function(class_num,dataset) {
+  excluded_predictors_new <- c(excluded_predictors,class[-class_num])
+  d <- dataset[ , !(names(dataset) %in% excluded_predictors_new)]
+  
+  set.seed(1234)
+  trainIndex <- createDataPartition(d[,class[class_num]], p=0.70, list=FALSE)
+  data_train <- d[ trainIndex,]
+  data_test <- d[-trainIndex,]
+    
+  x_train <- data_train[, !(names(data_train) %in% class[class_num])]
+  y_train <- data_train[,class[class_num]]
+  x_test <- data_test[, !(names(data_test) %in% class[class_num])]
+  y_test <- data_test[,class[class_num]]
+  
+  tryTypes=c(0:7)
+  tryCosts=c(0.01,0.05,0.10,0.25,0.5,1,2,5,10,50,100)
+  bestCost=NA
+  bestAcc=0
+  bestType=NA
+  
+  for(ty in tryTypes){
+  for(co in tryCosts){
+    
+    set.seed(1234)
+    model <- LiblineaR(data=x_train,target=y_train,type=ty,cost=co,verbose=FALSE)
+
+    predictions <- predict(model, x_test)
+    cm <- confusionMatrix(predictions$predictions, y_test, positive = 'H')
+    acc <- cm$overall[1]
+    
+    if(acc>bestAcc){
+      bestCost=co
+      bestAcc=acc
+      bestType=ty
+  } } }
+  
+  set.seed(1234)
+  model <- LiblineaR(data=x_train,target=y_train,type=bestType,cost=bestCost,verbose=FALSE)
+  
+  predictions <- predict(model, x_test)
+  cm <- confusionMatrix(predictions$predictions, y_test, positive = 'H')
+  
+  accuracy <- round(cm$overall[1], digits = 2)
+  rmse <- round(RMSE(as.numeric(predictions$predictions),as.numeric(y_test)),2)
+  mae <- round(MAE(as.numeric(predictions$predictions),as.numeric(y_test)),2)
+  best_param <- paste('Model:',bestType,'C:',bestCost,sep=' ')
+  return(c(mae,rmse,accuracy,best_param))
+}
+```
+
+LiblineaR permette di riprodurre 10 tipi di modelli lineari (generalizzati), andando a combinare diversi tipi di funzioni di perdita e schemi di regolarizzazione. I modelli disponibili per la multi-class classification sono i seguenti:
+
+* 0 – L2-regularized logistic regression (primal)
+* 1 – L2-regularized L2-loss support vector classification (dual)
+* 2 – L2-regularized L2-loss support vector classification (primal)
+* 3 – L2-regularized L1-loss support vector classification (dual)
+* 4 – Support vector classification by Crammer and Singer
+* 5 – L1-regularized L2-loss support vector classification
+* 6 – L1-regularized logistic regression
+* 7 – L2-regularized logistic regression (dual)
+
+In questo report sono mostrati i risultati della classificazione con best model selection tra gli 8 modelli appena elencati per il task di classificazione numero 5.
+
+Per quanto riguarda la classificazione, si è diviso il dataset in training set (70%) e test set (30%). In seguito si è eseguita un fase di tuning volta a stabilire quale sia il modello liblineaR, e il relativo parametro di costo C, per il quale si registra l'accuracy maggiore nel predire i valori del test set. Si è poi ri-addestrato il modello, generando la matrice di confusione con le predizioni sul test set, calcolando poi le metriche di accuracy, MAE e RMSE.
+
+Si riportano di seguito i risultati ottenuti. Sono mostrate tre tabelle: la prima riporta i valori di accuracy, la seconda quelli di MAE e l'ultima di RMSE. In ogni tabella le righe rappresentano i set di feature analizzati, mentre le colonne indicano il tratto di personalità valutato, con l'ultima colonna che riporta la media dei risultati per set di feature.
+
+```{r, include=FALSE, WARNING=FALSE}
+
+get_metrics_df <- function(dataset_list) {
+  
+  file_num <- 1
+  dataset <- readRDS(dataset_list[file_num])
+    
+  accuracies <- list()
+  maes <- list()
+  rmses <- list()
+  class_num <- 1
+  result = classification(class_num,dataset)
+  mae <- result[1]
+  rmse <- result[2]
+  accuracy <- result[3]
+  
+  class_name <- substr(class[class_num], 2, nchar(class[class_num]))
+  print(paste(class_name,'Feature set',file_num,result[4],sep=' '))
+  
+  accuracies_df <- data.frame("Feature" = c("Mairesse, no NLoN"), 'temp_name' = as.numeric(accuracy), stringsAsFactors = F)
+  names(accuracies_df)[names(accuracies_df) == 'temp_name'] <- class_name
+  accuracies[class_num] <- as.numeric(accuracy)
+  
+  mae_df <- data.frame("Feature" = c("Mairesse, no NLoN"), 'temp_name' = as.numeric(mae), stringsAsFactors = F)
+  names(mae_df)[names(mae_df) == 'temp_name'] <- class_name
+  maes[class_num] <- as.numeric(mae)
+    
+  rmse_df <- data.frame("Feature" = c("Mairesse, no NLoN"), 'temp_name' = as.numeric(rmse), stringsAsFactors = F)
+  names(rmse_df)[names(rmse_df) == 'temp_name'] <- class_name
+  rmses[class_num] <- as.numeric(rmse)
+    
+  for(class_num in 2:5){
+    result = classification(class_num,dataset)
+    mae <- result[1]
+    rmse <- result[2]
+    accuracy <- result[3]
+  
+    class_name <- substr(class[class_num], 2, nchar(class[class_num]))
+    print(paste(class_name,'Feature set',file_num,result[4],sep=' '))
+    
+    accuracies_df <- cbind(accuracies_df,'temp_name'=as.numeric(accuracy))
+    names(accuracies_df)[names(accuracies_df) == 'temp_name'] <- class_name
+    accuracies[class_num] <- as.numeric(accuracy)
+    
+    mae_df <- cbind(mae_df,'temp_name'=as.numeric(mae))
+    names(mae_df)[names(mae_df) == 'temp_name'] <- class_name
+    maes[class_num] <- as.numeric(mae)
+    
+    rmse_df <- cbind(rmse_df,'temp_name'=as.numeric(rmse))
+    names(rmse_df)[names(rmse_df) == 'temp_name'] <- class_name
+    rmses[class_num] <- as.numeric(rmse)
+    }
+    
+  accuracies_df <- cbind(accuracies_df,'mean'=mean(as.numeric(accuracies)))
+  mae_df <- cbind(mae_df,'mean'=mean(as.numeric(maes)))
+  rmse_df <- cbind(rmse_df,'mean'=mean(as.numeric(rmses)))
+    
+  
+  row_names = c('Mairesse, with NLoN',
+                'Mairesse+N-grams, no NLoN',
+                'Mairesse+N-grams, with NLoN')
+  for(file_num in (2:length(dataset_list))){
+    dataset <- readRDS(dataset_list[file_num])
+    accuracies <- list()
+    maes <- list()
+    rmses <- list()
+    
+    class_num <- 1
+    result = classification(class_num,dataset)
+    mae <- result[1]
+    rmse <- result[2]
+    accuracy <- result[3]
+   
+    class_name <- substr(class[class_num], 2, nchar(class[class_num]))
+    print(paste(class_name,'Feature set',file_num,result[4],sep=' '))
+    
+    accuracies_df <- rbind(accuracies_df,list(row_names[file_num-1],0,0,0,0,0,0))
+    accuracies_df[file_num,class_name] <- as.numeric(accuracy)
+    accuracies[class_num] <- as.numeric(accuracy)
+    
+    mae_df <- rbind(mae_df,list(row_names[file_num-1],0,0,0,0,0,0))
+    mae_df[file_num,class_name] <- as.numeric(mae)
+    maes[class_num] <- as.numeric(mae)
+      
+    rmse_df <- rbind(rmse_df,list(row_names[file_num-1],0,0,0,0,0,0))
+    rmse_df[file_num,class_name] <- as.numeric(rmse)
+    rmses[class_num] <- as.numeric(rmse)
+    
+    for(class_num in 2:5){
+      result = classification(class_num,dataset)
+      mae <- result[1]
+      rmse <- result[2]
+      accuracy <- result[3]
+    
+      class_name <- substr(class[class_num], 2, nchar(class[class_num]))
+      print(paste(class_name,'Feature set',file_num,result[4],sep=' '))
+      
+      accuracies_df[file_num,class_name] <- as.numeric(accuracy)
+      accuracies[class_num] <- as.numeric(accuracy)
+      
+      mae_df[file_num,class_name] <- as.numeric(mae)
+      maes[class_num] <- as.numeric(mae)
+        
+      rmse_df[file_num,class_name] <- as.numeric(rmse)
+      rmses[class_num] <- as.numeric(rmse)
+    }
+    accuracies_df[file_num,'mean'] <- mean(as.numeric(accuracies))
+    mae_df[file_num,'mean'] <- mean(as.numeric(maes))
+    rmse_df[file_num,'mean'] <- mean(as.numeric(rmses))
+  }
+  result <- list()
+  result[[1]] <- accuracies_df
+  result[[2]] <- mae_df
+  result[[3]] <- rmse_df
+
+  return(result)
+}
+```
+
+* Best model selection - Task di classificazione multi-class 5
+
+```{r}
+data = c('RObjects/feature_texts_task1.rds',
+         'RObjects/feature_texts_nlon_task1.rds',
+         'RObjects/feature_texts_task1_ngrams.rds',
+         'RObjects/feature_texts_nlon_task1_ngrams.rds')
+
+metrics_df = get_metrics_df(data)
+
+kable(metrics_df[[1]], caption = 'Accuracy con best model selection liblinear task 5')%>%
+        kable_styling("striped") %>%
+        add_header_above(c(" " = 1, "Accuracy" = 6))
+
+kable(metrics_df[[2]], caption = 'MAE con best model selection liblinear task 5')%>%
+        kable_styling("striped") %>%
+        add_header_above(c(" " = 1, "MAE" = 6))
+
+kable(metrics_df[[3]], caption = 'RMSE con best model selection liblinear task 5')%>%
+        kable_styling("striped") %>%
+        add_header_above(c(" " = 1, "RMSE" = 6))
+```
+
+Osservando i valori di accuracy medi ottenuti, si nota come per i 4 set di feature si raggiungano valori nell'intervallo tra 0.65 e quasi 0.7. Le prestazioni migliori (accuracy pari a 0.698) si registrano utilizzando come set di feature quello composto dalle sole feature Mairesse senza pre-processing NLoN. Valori medi leggermente minori si ottengono con gli altri set: per quello composto dalle feature Mairesse con NLon è pari a 0.684, per gli ultimi due, invece, quelli in cui sono inclusi gli n-grammi, l'accuracy media è uguale a 0.666, per il set senza pre-processing NLoN, e 0.65 per il set con NLoN.
+
+Spostando l'attenzione sui singoli tratti di personalità, si nota come il valore di accuracy più alto per l'Openness (0.71) e il Neuroticism (0.71) si sia ottenuto con i due set in cui sono compresi gli n-grammi. Per il tratto della Conscientiousness (0.77) e dell' Agreeableness (0.69), il set più adatto risulta essere quello composto dalle feature di Mairesse senza NLoN. Infine, per il tratto dall'Extraversion, l'accuracy più elevata (0.83) si ottiene con il set formato dalle feature Mairesse con NLoN. 
+
+I valori medi di MAE sono proporzionli a quelli delle accuratezze. Il tasso di errore medio più basso (0.480) è raggiunto con il set composto dalle feature Mairesse senza NLoN. Leggermente maggiori il MAE medio del secondo (0.494) e del terzo (0.49) set di feature. Con l'ultimo set si osserva il MAE maggiore (0.564).
+
+Riguardo il RMSE il valore minore (0.886) è ottenuto con il penultimo set di feature. Con i primi due set è uguale a 0.916 e 0.914, mentre con il set composto dalle feature Mairesse e n-grammi con NLoN raggiunge 0.982.
