@@ -1,5 +1,5 @@
 setuptools==41.0.0
 pandas==0.23.4
-nltk==3.4
+nltk==3.4.5
 rpy2==2.9.4
 beautifulsoup4==4.7.1
