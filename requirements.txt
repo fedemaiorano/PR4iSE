@@ -1,4 +1,4 @@
-setuptools==41.0.0
+setuptools==65.5.1
 pandas==0.23.4
 nltk==3.4
 rpy2==2.9.4
